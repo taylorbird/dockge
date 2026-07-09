@@ -122,9 +122,10 @@ export default {
             return classes;
         },
 
+        // Whether upstream Dockge has a newer release than the version this fork is based on.
         hasNewVersion() {
-            if (this.$root.info.latestVersion && this.$root.info.version) {
-                return compareVersions(this.$root.info.latestVersion, this.$root.info.version) >= 1;
+            if (this.$root.info.latestVersion && this.$root.info.baseVersion) {
+                return compareVersions(this.$root.info.latestVersion, this.$root.info.baseVersion) >= 1;
             } else {
                 return false;
             }

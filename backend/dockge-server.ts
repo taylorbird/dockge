@@ -87,7 +87,7 @@ export class DockgeServer {
         // Catch unexpected errors here
         let unexpectedErrorHandler = (error : unknown) => {
             console.trace(error);
-            console.error("If you keep encountering errors, please report to https://github.com/louislam/dockge");
+            console.error("If you keep encountering errors, please report to https://github.com/taylorbird/dockge");
         };
         process.addListener("unhandledRejection", unexpectedErrorHandler);
         process.addListener("uncaughtException", unexpectedErrorHandler);
@@ -426,17 +426,20 @@ export class DockgeServer {
     async sendInfo(socket : Socket, hideVersion = false) {
         let versionProperty;
         let latestVersionProperty;
+        let baseVersionProperty;
         let isContainer;
 
         if (!hideVersion) {
             versionProperty = packageJSON.version;
             latestVersionProperty = checkVersion.latestVersion;
+            baseVersionProperty = packageJSON.upstreamVersion;
             isContainer = (process.env.DOCKGE_IS_CONTAINER === "1");
         }
 
         socket.emit("info", {
             version: versionProperty,
             latestVersion: latestVersionProperty,
+            baseVersion: baseVersionProperty,
             isContainer,
             primaryHostname: await Settings.get("primaryHostname"),
             //serverTimezone: await this.getTimezone(),

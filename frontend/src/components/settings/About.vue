@@ -4,13 +4,19 @@
             <object class="my-4" width="200" height="200" data="/icon.svg" />
             <div class="fs-4 fw-bold">Dockge</div>
             <div>{{ $t("Version") }}: {{ $root.info.version }}</div>
+            <div v-if="$root.info.baseVersion" class="frontend-version">{{ $t("Based on Dockge") }}: {{ $root.info.baseVersion }}</div>
             <div class="frontend-version">{{ $t("Frontend Version") }}: {{ $root.frontendVersion }}</div>
 
             <div v-if="!$root.isFrontendBackendVersionMatched" class="alert alert-warning mt-4" role="alert">
                 ⚠️ {{ $t("Frontend Version do not match backend version!") }}
             </div>
 
-            <div class="my-3 update-link"><a href="https://github.com/louislam/dockge/releases" target="_blank" rel="noopener">{{ $t("Check Update On GitHub") }}</a></div>
+            <div v-if="hasUpstreamUpdate" class="alert alert-info mt-4" role="alert">
+                {{ $t("upstreamUpdateAvailable") }}: {{ $root.info.latestVersion }}
+                <div><a href="https://github.com/louislam/dockge/releases" target="_blank" rel="noopener">{{ $t("updateMainDockge") }}</a></div>
+            </div>
+
+            <div class="my-3 update-link"><a href="https://github.com/taylorbird/dockge/releases" target="_blank" rel="noopener">{{ $t("Check Update On GitHub") }}</a></div>
 
             <div class="mt-1">
                 <div class="form-check">
@@ -26,6 +32,8 @@
 </template>
 
 <script>
+import { compareVersions } from "compare-versions";
+
 export default {
     computed: {
         settings() {
@@ -36,6 +44,15 @@ export default {
         },
         settingsLoaded() {
             return this.$parent.$parent.$parent.settingsLoaded;
+        },
+
+        // Whether upstream Dockge has a newer release than the version this fork is based on.
+        hasUpstreamUpdate() {
+            const info = this.$root.info;
+            if (info.latestVersion && info.baseVersion) {
+                return compareVersions(info.latestVersion, info.baseVersion) >= 1;
+            }
+            return false;
         },
     },
 

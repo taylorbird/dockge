@@ -10,3 +10,9 @@ tmp
 # Git only
 frontend-dist
 
+# Claude Code work state (optional - remove if you want to track)
+# .claude/work/
+
+# Claude Code local settings (machine-specific)
+.claude/settings.local.json
+

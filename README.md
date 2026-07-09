@@ -101,7 +101,7 @@ compose:
 ```
 services:
   dockge:
-    image: louislam/dockge:1
+    image: taylorlbird/dockge:1
     restart: unless-stopped
     ports:
       # Host Port:Container Port
