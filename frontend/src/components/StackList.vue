@@ -47,21 +47,38 @@
                 </span>
             </div>
         </div>
-        <div ref="stackList" class="stack-list" :class="{ scrollbar: scrollbar }" :style="stackListStyle">
+        <div v-if="$root.agentCount > 1" class="server-list">
+            <div class="server-list-title">{{ $t("servers") }}</div>
+            <div
+                v-for="server in serverRows" :key="server.endpoint"
+                class="server-row" :class="{ active: selectedEndpoint === server.endpoint }"
+                :title="$t('runningStacksTooltip', [ server.running, server.total ])"
+                @click="toggleServerFilter(server.endpoint)"
+            >
+                <span class="status-dot" :class="server.status" :title="$t(server.status === 'online' ? 'agentOnline' : 'agentOffline')"></span>
+                <span class="server-name">{{ server.name }}</span>
+                <span class="server-count">{{ server.running }}/{{ server.total }}</span>
+            </div>
+        </div>
+        <div ref="stackList" class="stack-list" :class="{ scrollbar: scrollbar }">
             <div v-if="agentStackList[0] && agentStackList[0].stacks.length === 0" class="text-center mt-3">
                 <router-link to="/compose">{{ $t("addFirstStackMsg") }}</router-link>
             </div>
             <div v-for="(agent, agentIndex) in agentStackList" :key="agentIndex" class="stack-list-inner">
                 <div
-                    v-if="$root.agentCount > 1" class="p-2 agent-select"
+                    v-if="$root.agentCount > 1" class="agent-select"
                     @click="closedAgents.set(agent.endpoint, !closedAgents.get(agent.endpoint))"
                 >
                     <span class="me-1">
                         <font-awesome-icon v-show="closedAgents.get(agent.endpoint)" icon="chevron-circle-right" />
                         <font-awesome-icon v-show="!closedAgents.get(agent.endpoint)" icon="chevron-circle-down" />
                     </span>
-                    <span v-if="agent.endpoint === 'current'">{{ $t("currentEndpoint") }}</span>
-                    <span v-else>{{ $root.endpointDisplayFunction(agent.endpoint) || agent.endpoint }}</span>
+                    <span class="status-dot me-2" :class="agentStatus(agent.endpoint)" :title="$t(agentStatus(agent.endpoint) === 'online' ? 'agentOnline' : 'agentOffline')"></span>
+                    <span v-if="agent.endpoint === 'current'" class="agent-name">{{ $t("currentEndpoint") }}</span>
+                    <span v-else class="agent-name">{{ $root.endpointDisplayFunction(agent.endpoint) || agent.endpoint }}</span>
+                    <span class="stack-count" :title="$t('runningStacksTooltip', [ runningCount(agent), agent.stacks.length ])">
+                        {{ runningCount(agent) }}/{{ agent.stacks.length }}
+                    </span>
                 </div>
                 <StackListItem
                     v-for="(item, index) in agent.stacks"
@@ -107,9 +124,39 @@ export default {
                 tags: null,
             },
             closedAgents: new Map(),
+            selectedEndpoint: null,
         };
     },
     computed: {
+        /**
+         * One row per connected agent for the server overview panel,
+         * with unfiltered running/total stack counts.
+         * @returns {Array} Server rows sorted with the local agent first
+         */
+        serverRows() {
+            const allStacks = Object.values(this.$root.completeStackList);
+            const rows = Object.keys(this.$root.agentList).map(endpoint => {
+                const key = endpoint === "" ? "current" : endpoint;
+                const stacks = allStacks.filter(stack => (stack.endpoint || "current") === key);
+                return {
+                    endpoint: key,
+                    name: key === "current" ? this.$t("currentEndpoint") : (this.$root.endpointDisplayFunction(endpoint) || endpoint),
+                    status: this.$root.agentStatusList[endpoint] || "offline",
+                    running: stacks.filter(stack => stack.status === RUNNING).length,
+                    total: stacks.length,
+                };
+            });
+
+            return rows.sort((a, b) => {
+                if (a.endpoint === "current" && b.endpoint !== "current") {
+                    return -1;
+                } else if (a.endpoint !== "current" && b.endpoint === "current") {
+                    return 1;
+                }
+                return a.name.localeCompare(b.name);
+            });
+        },
+
         /**
          * Improve the sticky appearance of the list by increasing its
          * height as user scrolls down.
@@ -224,24 +271,16 @@ export default {
                 return a.endpoint.localeCompare(b.endpoint);
             });
 
+            // Filter to the server selected in the server overview panel
+            if (this.selectedEndpoint) {
+                result = result.filter(group => group.endpoint === this.selectedEndpoint);
+            }
+
             return result;
         },
 
         isDarkTheme() {
             return document.body.classList.contains("dark");
-        },
-
-        stackListStyle() {
-            //let listHeaderHeight = 107;
-            let listHeaderHeight = 60;
-
-            if (this.selectMode) {
-                listHeaderHeight += 42;
-            }
-
-            return {
-                "height": `calc(100% - ${listHeaderHeight}px)`
-            };
         },
 
         selectedStackCount() {
@@ -313,6 +352,37 @@ export default {
          */
         clearSearchText() {
             this.searchText = "";
+        },
+        /**
+         * Connection status of an agent
+         * @param {string} endpoint Agent endpoint ("current" for the local agent)
+         * @returns {string} "online" or "offline"
+         */
+        agentStatus(endpoint) {
+            return this.$root.agentStatusList[endpoint === "current" ? "" : endpoint] || "offline";
+        },
+        /**
+         * Open a server's detail page and filter the stack list to it;
+         * clicking the selected server again shows all servers and goes home
+         * @param {string} endpoint Endpoint of the clicked server row
+         * @returns {void}
+         */
+        toggleServerFilter(endpoint) {
+            if (this.selectedEndpoint === endpoint) {
+                this.selectedEndpoint = null;
+                this.$router.push("/");
+            } else {
+                this.selectedEndpoint = endpoint;
+                this.$router.push("/server/" + encodeURIComponent(endpoint));
+            }
+        },
+        /**
+         * Number of running stacks in an agent group
+         * @param {object} agent Agent group with its (filtered) stacks
+         * @returns {number} Count of running stacks
+         */
+        runningCount(agent) {
+            return agent.stacks.filter(stack => stack.status === RUNNING).length;
         },
         /**
          * Update the StackList Filter
@@ -394,6 +464,95 @@ export default {
     height: calc(100vh - 150px);
     position: sticky;
     top: 10px;
+    display: flex;
+    flex-direction: column;
+}
+
+.stack-list {
+    flex: 1;
+    min-height: 0;
+}
+
+.status-dot {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    background-color: #6c757d;
+
+    &.online {
+        background-color: #4caf50;
+    }
+
+    &.offline {
+        background-color: $danger;
+    }
+}
+
+.server-list {
+    flex: none;
+    margin: 0 -4px 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+
+    .dark & {
+        border-bottom-color: $dark-border-color;
+    }
+}
+
+.server-list-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: $dark-font-color3;
+    padding: 2px 10px 4px;
+}
+
+.server-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all ease-in-out 0.15s;
+
+    &:hover {
+        background-color: $highlight-white;
+    }
+
+    &.active {
+        background-color: #cdf8f4;
+    }
+
+    .dark & {
+        color: $dark-font-color;
+
+        &:hover,
+        &.active {
+            background-color: $dark-bg2;
+        }
+    }
+
+    .server-name {
+        flex: 1;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .server-count {
+        flex: none;
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+        color: $dark-font-color3;
+    }
 }
 
 .small-padding {
@@ -484,12 +643,42 @@ export default {
 .agent-select {
     cursor: pointer;
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 600;
     color: $dark-font-color3;
-    padding-left: 10px;
-    padding-right: 10px;
+    padding: 8px 10px;
     display: flex;
     align-items: center;
     user-select: none;
+
+    // Pin the server header to the top of the scroll area while its
+    // group scrolls; the next group's header pushes it out.
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background-color: #fff;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+
+    .dark & {
+        background-color: $dark-bg;
+        color: $dark-font-color;
+        border-bottom-color: $dark-border-color;
+    }
+
+    .agent-name {
+        flex: 1;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .stack-count {
+        flex: none;
+        margin-left: 8px;
+        font-size: 12px;
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+        color: $dark-font-color3;
+    }
 }
 </style>
