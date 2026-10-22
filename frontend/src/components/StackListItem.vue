@@ -4,6 +4,9 @@
         <div class="title">
             <span>{{ stackName }}</span>
         </div>
+        <span v-if="stack.imageUpdate?.updateAvailable" class="image-update-badge" :title="$t('imageUpdateAvailable')">
+            <font-awesome-icon icon="cloud-arrow-down" />
+        </span>
     </router-link>
 </template>
 
@@ -117,6 +120,12 @@ export default {
 
 <style lang="scss" scoped>
 @import "../styles/vars.scss";
+
+.image-update-badge {
+    margin-left: auto;
+    padding-left: 8px;
+    color: $warning;
+}
 
 .small-padding {
     padding-left: 5px !important;

@@ -61,6 +61,26 @@
                 </button>
             </div>
 
+            <!-- Image updates (newer image behind the same tag) -->
+            <div v-if="!isAdd && imageUpdate?.updateAvailable" class="alert alert-warning d-flex align-items-center flex-wrap gap-2 mb-3">
+                <font-awesome-icon icon="cloud-arrow-down" />
+                <span class="flex-grow-1">
+                    {{ $t("imageUpdateAvailableFor", [ updatableServices ]) }}
+                </span>
+                <button v-if="stack.isManagedByDockge" class="btn btn-sm btn-primary" :disabled="processing" @click="updateStack">
+                    {{ $t("updateStack") }}
+                </button>
+            </div>
+            <div v-if="!isAdd && !isEditMode" class="image-update-status mb-3">
+                <span v-if="imageUpdate">{{ $t("imageUpdateLastChecked", [ imageUpdateCheckedAt ]) }}</span>
+                <span v-for="svc in unknownImageServices" :key="svc.service" class="ms-2" :title="svc.reason">
+                    · {{ svc.service }}: {{ svc.reason }}
+                </span>
+                <a href="#" class="ms-2" :class="{ disabled: checkingImageUpdate }" @click.prevent="checkImageUpdate">
+                    {{ checkingImageUpdate ? $t("imageUpdateChecking") : $t("imageUpdateCheckNow") }}
+                </a>
+            </div>
+
             <!-- URLs -->
             <div v-if="urls.length > 0" class="mb-3">
                 <a v-for="(urlItem, index) in urls" :key="index" target="_blank" :href="urlItem.url">
@@ -344,6 +364,7 @@ export default {
             newContainerName: "",
             stopServiceStatusTimeout: false,
             stopDockerStatsTimeout: false,
+            checkingImageUpdate: false,
         };
     },
     computed: {
@@ -396,6 +417,26 @@ export default {
 
         active() {
             return this.status === RUNNING;
+        },
+
+        /** Last image update check for this stack (refreshed with the stack list) */
+        imageUpdate() {
+            return this.globalStack?.imageUpdate;
+        },
+
+        updatableServices() {
+            return (this.imageUpdate?.services ?? [])
+                .filter(svc => svc.status === "update-available")
+                .map(svc => `${svc.service} (${svc.image})`)
+                .join(", ");
+        },
+
+        unknownImageServices() {
+            return (this.imageUpdate?.services ?? []).filter(svc => svc.status === "unknown");
+        },
+
+        imageUpdateCheckedAt() {
+            return this.imageUpdate ? new Date(this.imageUpdate.checkedAt).toLocaleString() : "";
         },
 
         terminalName() {
@@ -667,6 +708,23 @@ export default {
             });
         },
 
+        checkImageUpdate() {
+            if (this.checkingImageUpdate) {
+                return;
+            }
+            this.checkingImageUpdate = true;
+            // Agents without this feature never answer; don't leave the link stuck
+            setTimeout(() => {
+                this.checkingImageUpdate = false;
+            }, 30 * 1000);
+            this.$root.emitAgent(this.endpoint, "checkStackImageUpdate", this.stack.name, (res) => {
+                this.checkingImageUpdate = false;
+                if (!res.ok) {
+                    this.$root.toastRes(res);
+                }
+            });
+        },
+
         stopStack() {
             this.processing = true;
 
@@ -848,6 +906,16 @@ export default {
 
 <style scoped lang="scss">
 @import "../styles/vars.scss";
+
+.image-update-status {
+    font-size: 13px;
+    color: $dark-font-color3;
+
+    a.disabled {
+        pointer-events: none;
+        opacity: 0.6;
+    }
+}
 
 .terminal {
     height: 200px;

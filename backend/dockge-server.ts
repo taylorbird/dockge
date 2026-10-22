@@ -32,6 +32,7 @@ import gracefulShutdown from "http-graceful-shutdown";
 import User from "./models/user";
 import childProcessAsync from "promisify-child-process";
 import { initDockerConfigDir } from "./docker-registry";
+import { checkStacks, pruneImageUpdates } from "./image-update-checker";
 import { AgentManager } from "./agent-manager";
 import { AgentProxySocketHandler } from "./socket-handlers/agent-proxy-socket-handler";
 import { AgentSocketHandler } from "./agent-socket-handler";
@@ -404,6 +405,12 @@ export class DockgeServer {
                 this.sendStackList(true);
             });
 
+            // Image update check: shortly after start, then every 6 hours
+            setTimeout(() => this.checkImageUpdates(), 60 * 1000);
+            Cron("0 0 */6 * * *", {
+                protect: true,
+            }, () => this.checkImageUpdates());
+
             checkVersion.startInterval();
         });
 
@@ -591,6 +598,21 @@ export class DockgeServer {
      * Send stack list to all connected sockets
      * @param useCache
      */
+    /**
+     * Check every stack on this instance for newer images behind the same tag, then push the stack list
+     */
+    async checkImageUpdates() {
+        try {
+            const stackList = await Stack.getStackList(this, true);
+            const names = [ ...stackList.keys() ];
+            pruneImageUpdates(new Set(names));
+            await checkStacks(names);
+            await this.sendStackList(true);
+        } catch (e) {
+            log.error("image-update", e);
+        }
+    }
+
     async sendStackList(useCache = false) {
         let socketList = this.io.sockets.sockets.values();
 

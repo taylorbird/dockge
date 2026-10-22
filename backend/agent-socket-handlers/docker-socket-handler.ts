@@ -4,6 +4,8 @@ import { callbackError, callbackResult, checkLogin, DockgeSocket, ValidationErro
 import { Stack } from "../stack";
 import { AgentSocket } from "../../common/agent-socket";
 import { getRegistryLogins, registryLogin, registryLogout } from "../docker-registry";
+import { checkStack } from "../image-update-checker";
+import { log } from "../log";
 
 export class DockerSocketHandler extends AgentSocketHandler {
     create(socket : DockgeSocket, server : DockgeServer, agentSocket : AgentSocket) {
@@ -14,6 +16,7 @@ export class DockerSocketHandler extends AgentSocketHandler {
                 checkLogin(socket);
                 const stack = await this.saveStack(server, name, composeYAML, composeENV, isAdd);
                 await stack.deploy(socket);
+                this.recheckImageUpdate(server, stack.name);
                 server.sendStackList();
                 callbackResult({
                     ok: true,
@@ -193,6 +196,7 @@ export class DockerSocketHandler extends AgentSocketHandler {
                     msg: "Updated",
                     msgi18n: true,
                 }, callback);
+                this.recheckImageUpdate(server, stackName);
                 server.sendStackList();
             } catch (e) {
                 callbackError(e, callback);
@@ -333,6 +337,24 @@ export class DockerSocketHandler extends AgentSocketHandler {
             }
         });
 
+        // Check one stack for newer images behind the same tag ("Check now")
+        agentSocket.on("checkStackImageUpdate", async (stackName : unknown, callback) => {
+            try {
+                checkLogin(socket);
+                if (typeof(stackName) !== "string") {
+                    throw new ValidationError("Stack name must be a string");
+                }
+                const imageUpdate = await checkStack(stackName);
+                server.sendStackList(true);
+                callbackResult({
+                    ok: true,
+                    imageUpdate,
+                }, callback);
+            } catch (e) {
+                callbackError(e, callback);
+            }
+        });
+
         // Private registry logins (stored in this agent's DOCKER_CONFIG)
         agentSocket.on("getRegistryLogins", async (callback) => {
             try {
@@ -373,6 +395,17 @@ export class DockerSocketHandler extends AgentSocketHandler {
                 callbackError(e, callback);
             }
         });
+    }
+
+    /**
+     * Refresh a stack's image update flag in the background (after deploy/update the running image changed)
+     * @param server Dockge server
+     * @param stackName Stack name
+     */
+    recheckImageUpdate(server : DockgeServer, stackName : string) {
+        checkStack(stackName)
+            .then(() => server.sendStackList(true))
+            .catch((e) => log.warn("image-update", `Re-check of ${stackName} failed: ${e instanceof Error ? e.message : e}`));
     }
 
     async saveStack(server : DockgeServer, name : unknown, composeYAML : unknown, composeENV : unknown, isAdd : unknown) : Promise<Stack> {

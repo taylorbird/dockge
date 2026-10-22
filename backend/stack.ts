@@ -19,6 +19,7 @@ import {
 import { InteractiveTerminal, Terminal } from "./terminal";
 import childProcessAsync from "promisify-child-process";
 import { Settings } from "./settings";
+import { getStackImageUpdate } from "./image-update-checker";
 
 export class Stack {
 
@@ -86,6 +87,7 @@ export class Stack {
             isManagedByDockge: this.isManagedByDockge,
             composeFileName: this._composeFileName,
             endpoint,
+            imageUpdate: getStackImageUpdate(this.name),
         };
     }
 
