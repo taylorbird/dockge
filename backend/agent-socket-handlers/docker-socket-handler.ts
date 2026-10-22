@@ -3,6 +3,7 @@ import { DockgeServer } from "../dockge-server";
 import { callbackError, callbackResult, checkLogin, DockgeSocket, ValidationError } from "../util-server";
 import { Stack } from "../stack";
 import { AgentSocket } from "../../common/agent-socket";
+import { getRegistryLogins, registryLogin, registryLogout } from "../docker-registry";
 
 export class DockerSocketHandler extends AgentSocketHandler {
     create(socket : DockgeSocket, server : DockgeServer, agentSocket : AgentSocket) {
@@ -326,6 +327,47 @@ export class DockerSocketHandler extends AgentSocketHandler {
                 callbackResult({
                     ok: true,
                     dockerNetworkList,
+                }, callback);
+            } catch (e) {
+                callbackError(e, callback);
+            }
+        });
+
+        // Private registry logins (stored in this agent's DOCKER_CONFIG)
+        agentSocket.on("getRegistryLogins", async (callback) => {
+            try {
+                checkLogin(socket);
+                callbackResult({
+                    ok: true,
+                    registryLogins: getRegistryLogins(),
+                }, callback);
+            } catch (e) {
+                callbackError(e, callback);
+            }
+        });
+
+        agentSocket.on("registryLogin", async (server : unknown, username : unknown, password : unknown, callback) => {
+            try {
+                checkLogin(socket);
+                await registryLogin(server, username, password);
+                callbackResult({
+                    ok: true,
+                    msg: "registryLoginSucceeded",
+                    msgi18n: true,
+                }, callback);
+            } catch (e) {
+                callbackError(e, callback);
+            }
+        });
+
+        agentSocket.on("registryLogout", async (server : unknown, callback) => {
+            try {
+                checkLogin(socket);
+                await registryLogout(server);
+                callbackResult({
+                    ok: true,
+                    msg: "registryLogoutSucceeded",
+                    msgi18n: true,
                 }, callback);
             } catch (e) {
                 callbackError(e, callback);

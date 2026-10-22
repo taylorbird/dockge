@@ -31,6 +31,7 @@ import { Cron } from "croner";
 import gracefulShutdown from "http-graceful-shutdown";
 import User from "./models/user";
 import childProcessAsync from "promisify-child-process";
+import { initDockerConfigDir } from "./docker-registry";
 import { AgentManager } from "./agent-manager";
 import { AgentProxySocketHandler } from "./socket-handlers/agent-proxy-socket-handler";
 import { AgentSocketHandler } from "./agent-socket-handler";
@@ -563,6 +564,8 @@ export class DockgeServer {
         }
 
         log.info("server", `Data Dir: ${this.config.dataDir}`);
+
+        initDockerConfigDir(this.config.dataDir);
     }
 
     /**

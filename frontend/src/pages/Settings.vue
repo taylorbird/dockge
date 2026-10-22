@@ -86,6 +86,9 @@ export default {
                 globalEnv: {
                     title: this.$t("GlobalEnv"),
                 },
+                registries: {
+                    title: this.$t("Registries"),
+                },
                 about: {
                     title: this.$t("About"),
                 },
