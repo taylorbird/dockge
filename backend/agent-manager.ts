@@ -199,6 +199,14 @@ export class AgentManager {
         client.on("info", (res) => {
             log.debug("agent-manager", res);
 
+            // The pre-login info hides the version; only forward the real one
+            if (typeof res.version === "string") {
+                this.socket.emit("agentVersion", {
+                    endpoint: endpoint,
+                    version: res.version,
+                });
+            }
+
             // Disconnect if the version is lower than 1.4.0
             if (!isDev && semver.satisfies(res.version, "< 1.4.0")) {
                 this.socket.emit("agentStatus", {

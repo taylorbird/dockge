@@ -4,6 +4,7 @@ import { defineComponent } from "vue";
 import jwtDecode from "jwt-decode";
 import { Terminal } from "@xterm/xterm";
 import { AgentSocket } from "../../../common/agent-socket";
+import { compareDockgeVersions } from "../../../common/util-common";
 
 let socket : Socket;
 
@@ -45,9 +46,25 @@ export default defineComponent({
             agentList: {
 
             },
+
+            // Dockge version reported by each remote agent, keyed by endpoint
+            agentVersionList: {
+
+            },
         };
     },
     computed: {
+
+        /** Newest Dockge version running anywhere in the fleet (this instance + connected agents) */
+        fleetLatestVersion() {
+            let latest = this.info.version;
+            for (const version of Object.values(this.agentVersionList)) {
+                if (!latest || compareDockgeVersions(version, latest) > 0) {
+                    latest = version;
+                }
+            }
+            return latest;
+        },
 
         agentCount() {
             return Object.keys(this.agentList).length;
@@ -129,6 +146,31 @@ export default defineComponent({
 
     },
     methods: {
+
+        /**
+         * Dockge version running on an agent
+         * @param endpoint Agent endpoint ("" or "current" = this instance)
+         * @returns Version, or undefined if not reported yet
+         */
+        agentVersion(endpoint : string) : string | undefined {
+            if (endpoint === "" || endpoint === "current") {
+                return this.info.version;
+            }
+            return this.agentVersionList[endpoint];
+        },
+
+        /**
+         * Whether an agent runs an older Dockge than the newest one in the fleet
+         * @param endpoint Agent endpoint ("" or "current" = this instance)
+         * @returns true if outdated
+         */
+        isAgentOutdated(endpoint : string) : boolean {
+            const version = this.agentVersion(endpoint);
+            if (!version || !this.fleetLatestVersion) {
+                return false;
+            }
+            return compareDockgeVersions(version, this.fleetLatestVersion) < 0;
+        },
 
         endpointDisplayFunction(endpoint : string) {
             for (const [ k, v ] of Object.entries(this.$data.agentList)) {
@@ -281,6 +323,10 @@ export default defineComponent({
                 if (res.msg) {
                     this.toastError(res.msg);
                 }
+            });
+
+            socket.on("agentVersion", (res) => {
+                this.agentVersionList[res.endpoint] = res.version;
             });
 
             socket.on("agentList", (res) => {

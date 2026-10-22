@@ -57,6 +57,10 @@
             >
                 <span class="status-dot" :class="server.status" :title="$t(server.status === 'online' ? 'agentOnline' : 'agentOffline')"></span>
                 <span class="server-name">{{ server.name }}</span>
+                <span
+                    v-if="$root.isAgentOutdated(server.endpoint)" class="badge outdated-badge"
+                    :title="$t('outdatedTooltip', [ $root.agentVersion(server.endpoint), $root.fleetLatestVersion ])"
+                >{{ $t("outdated") }}</span>
                 <span class="server-count">{{ server.running }}/{{ server.total }}</span>
             </div>
         </div>
@@ -552,6 +556,15 @@ export default {
         font-size: 12px;
         font-variant-numeric: tabular-nums;
         color: $dark-font-color3;
+    }
+
+    .outdated-badge {
+        flex: none;
+        margin-right: 8px;
+        font-size: 10px;
+        font-weight: 600;
+        background-color: $warning;
+        color: #000;
     }
 }
 

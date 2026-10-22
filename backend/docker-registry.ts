@@ -41,8 +41,19 @@ export function initDockerConfigDir(dataDir : string) {
     for (const sub of [ "cli-plugins", "contexts" ]) {
         const target = path.join(legacyDir, sub);
         const link = path.join(dir, sub);
-        if (fs.existsSync(target) && !fs.existsSync(link)) {
-            fs.symlinkSync(target, link, "dir");
+        try {
+            // lstat, not existsSync: a dangling link from an earlier start must still count as present
+            let linkPresent = true;
+            try {
+                fs.lstatSync(link);
+            } catch (_) {
+                linkPresent = false;
+            }
+            if (fs.existsSync(target) && !linkPresent) {
+                fs.symlinkSync(target, link, "dir");
+            }
+        } catch (e) {
+            log.warn("registry", `Cannot link ${link} -> ${target}: ${e instanceof Error ? e.message : e}`);
         }
     }
 

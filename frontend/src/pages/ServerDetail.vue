@@ -6,7 +6,13 @@
             <div class="mb-4">
                 <span v-if="status === 'online'" class="badge bg-primary me-2">{{ $t("agentOnline") }}</span>
                 <span v-else class="badge bg-danger me-2">{{ $t("agentOffline") }}</span>
+                <span v-if="version" class="badge me-2" :class="outdated ? 'bg-warning text-dark' : 'bg-secondary'">
+                    {{ $t("Version") }} {{ version }}
+                </span>
                 <span v-if="agent && agent.url" class="agent-url">{{ agent.url }}</span>
+            </div>
+            <div v-if="outdated" class="alert alert-warning mb-4">
+                {{ $t("outdatedServerMsg", [ version, $root.fleetLatestVersion ]) }}
             </div>
 
             <!-- Stack counts -->
@@ -124,6 +130,14 @@ export default {
 
         status() {
             return this.$root.agentStatusList[this.agentKey] || "offline";
+        },
+
+        version() {
+            return this.$root.agentVersion(this.agentKey);
+        },
+
+        outdated() {
+            return this.$root.isAgentOutdated(this.agentKey);
         },
 
         displayName() {

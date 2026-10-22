@@ -428,3 +428,38 @@ function traverseYAML(pair : Pair, env : DotenvParseOutput) : void {
     }
 }
 
+/**
+ * Parse a Dockge version for fleet comparison.
+ * Fork builds look like "1.5.0-tbird.4"; anything else (upstream "1.5.0", "1.5.0-beta.1", nightly)
+ * ranks below every fork build on the same base, so an upstream agent never looks newer than the fork.
+ * @param version Version string
+ * @returns [major, minor, patch, forkBuild] or null if unparsable
+ */
+function parseDockgeVersion(version : string) : number[] | null {
+    const match = /^(\d+)\.(\d+)\.(\d+)(?:-(.+))?$/.exec(version.trim());
+    if (!match) {
+        return null;
+    }
+    const fork = /^tbird\.(\d+)$/.exec(match[4] ?? "");
+    return [ Number(match[1]), Number(match[2]), Number(match[3]), fork ? Number(fork[1]) : -1 ];
+}
+
+/**
+ * Compare two Dockge versions using the fork ordering above
+ * @param a Version a
+ * @param b Version b
+ * @returns negative if a < b, 0 if equal or unparsable, positive if a > b
+ */
+export function compareDockgeVersions(a : string, b : string) : number {
+    const pa = parseDockgeVersion(a);
+    const pb = parseDockgeVersion(b);
+    if (!pa || !pb) {
+        return 0;
+    }
+    for (let i = 0; i < pa.length; i++) {
+        if (pa[i] !== pb[i]) {
+            return pa[i] - pb[i];
+        }
+    }
+    return 0;
+}
